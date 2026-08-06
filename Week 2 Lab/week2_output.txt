@@ -1,0 +1,168 @@
+
+R version 4.6.1 (2026-06-24 ucrt) -- "Happy Hop"
+Copyright (C) 2026 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+[Previously saved workspace restored]
+
+> # Basic operations
+> 2 + 3
+[1] 5
+> 2 * 3
+[1] 6
+> 2 - 3
+[1] -1
+> 3 / 2
+[1] 1.5
+> 
+> # BODMAS rule in action (Brackets, Orders, Division, Multiplication, Addition, Subtraction)
+> 2 * 3 - 4 + 5 / 6
+[1] 2.833333
+> (2 + 3) * 5 + 5 - 10
+[1] 20
+> (((2 + 3) * 5 + 5) - 10) / 2
+[1] 10
+> 
+> # Spacing doesn't matter
+> 2+5
+[1] 7
+> 2    +    5
+[1] 7
+> 
+> # Assigning values
+> x <- 20
+> x
+[1] 20
+> x = 20
+> x
+[1] 20
+> 
+> # Doing math with variables
+> y = x * 2
+> y
+[1] 40
+> z = x + y
+> z
+[1] 60
+> 
+> # Case sensitivity check
+> X <- 30
+> X
+[1] 30
+> x
+[1] 20
+> 
+> # Assigning character strings (quotes are required)
+> x = "apple"
+> x = 'apple'
+> x
+[1] "apple"
+> 
+> # Checking data types
+> x = 20
+> is.numeric(x)
+[1] TRUE
+> is.character(x)
+[1] FALSE
+> 
+> y = "apple"
+> is.character(y)
+[1] TRUE
+> is.numeric(y)
+[1] FALSE
+> 
+> # Converting data types
+> y = as.character(x)
+> is.numeric(y)
+[1] FALSE
+> is.character(y)
+[1] TRUE
+> y
+[1] "20"
+> 
+> # Coercion warning (converting text to a number creates NA - Not Available)
+> z = as.numeric("apple")
+Warning message:
+NAs introduced by coercion 
+> z
+[1] NA
+> 
+> # Checking storage modes
+> x = 6
+> mode(x)
+[1] "numeric"
+> storage.mode(x)
+[1] "double"
+> 
+> x = TRUE
+> storage.mode(x)
+[1] "logical"
+> 
+> # Creating a data vector
+> y = c(1, 2, 3, 4, 5)
+> y
+[1] 1 2 3 4 5
+> 
+> # Math with vectors and scalars
+> c(2, 3, 5, 7) + 10
+[1] 12 13 15 17
+> c(12, 13, 15, 17) - 10
+[1] 2 3 5 7
+> c(2, 3, 5, 7) * 10
+[1] 20 30 50 70
+> c(12, 13, 15, 17) / 10
+[1] 1.2 1.3 1.5 1.7
+> 
+> # Math between vectors of the same length
+> c(2, 3, 5, 7) + c(-2, -3, -5, 8)
+[1]  0  0  0 15
+> c(2, 3, 5, 7) - c(-2, -3, -5, 8)
+[1]  4  6 10 -1
+> c(2, 3, 5, 7) * c(-2, -3, -5, 8)
+[1]  -4  -9 -25  56
+> c(24, 20, 8, 16) / c(3, 4, 2, 8)
+[1] 8 5 4 2
+> 
+> # Vector recycling (dividing 4 items by 2 items works perfectly)
+> c(24, 20, 8, 16) / c(4, 2)
+[1]  6 10  2  8
+> 
+> # Vector mismatch warnings (when lengths aren't perfect multiples)
+> c(2, 3, 5, 7) + c(8, 9, 10)
+[1] 10 12 15 15
+Warning message:
+In c(2, 3, 5, 7) + c(8, 9, 10) :
+  longer object length is not a multiple of shorter object length
+> c(24, 20, 8, 16) / c(4, 2, 8)
+[1]  6 10  1  4
+Warning message:
+In c(24, 20, 8, 16)/c(4, 2, 8) :
+  longer object length is not a multiple of shorter object length
+> 
+> # Division by zero
+> 3 / 0
+[1] Inf
+> 5 + Inf
+[1] Inf
+> 
+> # Checking for infinity
+> x = 5 + Inf
+> is.finite(x)
+[1] FALSE
+> is.infinite(x)
+[1] TRUE
+> 
