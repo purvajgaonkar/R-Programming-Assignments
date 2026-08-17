@@ -29,7 +29,8 @@ banner <- function(title) {
   cat("\n", line, "\n", title, "\n", line, "\n", sep = "")
 }
 
-# Ensure output directory exists
+# Ensure output and data directories exist
+if (!dir.exists("data")) dir.create("data")
 if (!dir.exists("output")) dir.create("output")
 
 # =============================================================================
@@ -275,9 +276,10 @@ cat("\n6d. Median imputation for numeric columns...\n")
 for (col in numeric_cols) {
   na_before <- sum(is.na(adult_clean[[col]]))
   if (na_before > 0) {
+    med_used <- median(adult_clean[[col]], na.rm = TRUE)
     adult_clean[[col]] <- impute_median(adult_clean[[col]])
     cat(sprintf("  %-20s: %d NAs imputed with median = %.1f\n",
-                col, na_before, median(adult_orig[[col]], na.rm = TRUE)))
+                col, na_before, med_used))
   }
 }
 

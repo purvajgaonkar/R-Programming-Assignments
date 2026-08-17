@@ -29,7 +29,8 @@ banner <- function(title) {
   cat("\n", line, "\n", title, "\n", line, "\n", sep = "")
 }
 
-# Ensure output directory exists
+# Ensure output and data directories exist
+if (!dir.exists("data")) dir.create("data")
 if (!dir.exists("output")) dir.create("output")
 
 # =============================================================================
@@ -239,7 +240,7 @@ cat("Non-numeric  chol=200, trestbps='x' ->",
 # Apply across the full dataset (using cleaned BP to keep ratios sensible)
 heart_ratios <- mapply(safe_ratio,
                        as.numeric(heart$chol),
-                       as.numeric(heart$trestbps))
+                       bp_clean)
 cat("\nRatio summary across 303 rows:\n")
 print(summary(heart_ratios))
 

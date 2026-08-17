@@ -1,0 +1,12 @@
+# Data folders (UCI downloads are fetched at runtime and should not be committed)
+**/data/
+
+# R / RStudio artefacts
+Rplots.pdf
+*.RData
+*.Rhistory
+.Rproj.user/
+
+# OS noise
+.DS_Store
+Thumbs.db
