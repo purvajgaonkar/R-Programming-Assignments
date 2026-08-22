@@ -1,0 +1,155 @@
+﻿=== SETUP & LIBRARIES ===
+
+=== TASK 1: IMPORT AND CLEAN ===
+Importing datasets...
+Raw dimensions:
+- Transactions: 541909 rows, 5 columns
+- Products: 4070 rows, 3 columns
+- Customers: 4372 rows, 2 columns
+
+Cleaning transactions...
+
+Cleaning products...
+
+Cleaning customers...
+
+--- CLEANING LOG TABLE ---
+         Table                        Step Before_Rows After_Rows Removed
+1 Transactions           Remove Duplicates      541909     536480    5429
+2 Transactions   Filter Invalid Quantities      536480     535144    1336
+3 Transactions        Retain NA CustomerID      535144     535144       0
+4     Products           Remove Duplicates        4070       4070       0
+5     Products Filter Zero/Negative Prices        4070       3925     145
+6    Customers           Remove Duplicates        4372       4372       0
+7    Customers       No-op (Already clean)        4372       4372       0
+
+=== TASK 2: INTEGRATE ===
+Performing left_join...
+Final integrated dataset dimensions: 535144 rows x 8 columns
+
+Unmatched products in joined dataset (StockCodes missing from products catalog):
+- Number of unmatched transactions: 52 
+- Unique StockCodes unmatched: 32 
+Unmatched customers in joined dataset (CustomerIDs missing from customers directory):
+- Number of unmatched transactions with non-NA CustomerID: 0 
+- Unique CustomerIDs unmatched: 0 
+Transactions with missing CustomerID (expected to not match customers): 133595 
+
+Key Cardinality Verification:
+- Row count of cleaned transactions: 535144 
+- Row count of integrated dataset: 535144 
+Verification SUCCESS: No row duplication occurred during the join.
+
+Computing Revenue (Quantity * UnitPrice)...
+Rows with valid Revenue for analysis: 535092 
+Rows dropped due to missing price/unmatched product: 52 
+
+=== TASK 3: SALES AND CUSTOMER ANALYSIS ===
+1. Total Sales Revenue: $ 10,241,241 
+
+2. Top 5 Products by Revenue:
+# A tibble: 5 ├ù 3
+  StockCode Description                        Revenue
+  <chr>     <chr>                                <dbl>
+1 DOT       DOTCOM POSTAGE                     315693.
+2 22423     REGENCY CAKESTAND 3 TIER           165839.
+3 85123A    WHITE HANGING HEART T-LIGHT HOLDER 115233.
+4 POST      POSTAGE                            114390 
+5 85099B    JUMBO BAG RED RETROSPOT             98301.
+
+3. Top 5 Countries by Revenue:
+# A tibble: 5 ├ù 2
+  Country         Revenue
+  <chr>             <dbl>
+1 United Kingdom 7407550.
+2 <NA>           1181924.
+3 Netherlands     331094.
+4 EIRE            276248.
+5 Germany         230450.
+
+4. Top 5 Customers by Revenue:
+# A tibble: 5 ├ù 2
+  CustomerID Revenue
+       <dbl>   <dbl>
+1      18102 401975.
+2      14646 325687.
+3      17450 175969.
+4      12415 144253.
+5      14911 143631.
+
+Classifying customers into value bands...
+Spend Thresholds (derived from distribution):
+- Low to Medium (50th percentile): $ 671.09 
+- Medium to High (75th percentile): $ 1663.17 
+- High to Premium (95th percentile): $ 5944.09 
+
+Customer Segments Count and Summary:
+# A tibble: 4 ├ù 4
+  Segment      Customer_Count Total_Spend Average_Spend
+  <fct>                 <int>       <dbl>         <dbl>
+1 Low Value              2186     666022.          305.
+2 Medium Value           1093    1172823.         1073.
+3 High Value              874    2614967.         2992.
+4 Premium                 219    4605504.        21030.
+
+Market Analysis (UK vs Others):
+
+Detailed Country Metrics (Top 10):
+# A tibble: 10 ├ù 6
+   Country      TotalRevenue TotalTransactions TotalCustomers RevenuePerCustomer
+   <chr>               <dbl>             <int>          <int>              <dbl>
+ 1 United KingΓÇª     7407550.             19856           3950              1875.
+ 2 <NA>             1181924.              2338              0                NA 
+ 3 Netherlands       331094.               101              9             36788.
+ 4 EIRE              276248.               319              3             92083.
+ 5 Germany           230450.               603             95              2426.
+ 6 France            203008.               458             87              2333.
+ 7 Australia         159418.                72              9             17713.
+ 8 Spain              59211.               106             30              1974.
+ 9 Switzerland        56461.                73             20              2823.
+10 Belgium            42710.               119             24              1780.
+# Γä╣ 1 more variable: RevenuePerTransaction <dbl>
+
+Selected Market Comparisons:
+- Netherlands (High-performing):
+# A tibble: 1 ├ù 6
+  Country     TotalRevenue TotalTransactions TotalCustomers RevenuePerCustomer
+  <chr>              <dbl>             <int>          <int>              <dbl>
+1 Netherlands      331094.               101              9             36788.
+# Γä╣ 1 more variable: RevenuePerTransaction <dbl>
+- Saudi Arabia (Underperforming):
+# A tibble: 1 ├ù 6
+  Country      TotalRevenue TotalTransactions TotalCustomers RevenuePerCustomer
+  <chr>               <dbl>             <int>          <int>              <dbl>
+1 Saudi Arabia         134.                 2              1               134.
+# Γä╣ 1 more variable: RevenuePerTransaction <dbl>
+
+Generating plots...
+Plots successfully saved to output/ directory.
+
+=== TASK 4: SQLITE ===
+Writing retail_sales table to SQLite...
+
+Executing SQL Query 1: Top 5 Customers by Revenue...
+  CustomerID  Revenue
+1      18102 401975.0
+2      14646 325686.9
+3      17450 175969.1
+4      12415 144253.3
+5      14911 143631.1
+
+Executing SQL Query 2: Total Revenue by Country (Top 5)...
+         Country   Revenue
+1 United Kingdom 7407549.8
+2           <NA> 1181924.4
+3    Netherlands  331094.5
+4           EIRE  276247.5
+5        Germany  230450.2
+
+--- CROSS-CHECK VERIFICATION ---
+Top 5 Customers match: TRUE 
+Top 5 Countries match: TRUE 
+Verification SUCCESS: SQLite results match dplyr results exactly!
+
+Database file size: 51.84 MB
+WARNING: The SQLite database exceeds 50 MB.
