@@ -67,12 +67,19 @@ cat("\nCleaning transactions...\n")
 transactions_step1 <- distinct(transactions_raw)
 log_step("Transactions", "Remove Duplicates", transactions_raw, transactions_step1)
 
-# Step 2: Invalid or zero quantities
-# Negative quantities are cancellations only if InvoiceNo begins with "C".
-# Any other negative or zero quantities are invalid and must be removed.
+# Step 2: Quantity filtering.
+# Cancellations carry a negative Quantity and an InvoiceNo starting with "C". They are
+# legitimate business events (returns) and are RETAINED so that total revenue is net of returns.
+# The 1,336 rows with negative Quantity but no leading "C" are data errors with no matching
+# invoice type; those are removed.
 transactions_step2 <- transactions_step1 %>%
   filter(Quantity > 0 | (Quantity < 0 & grepl("^C", InvoiceNo)))
-log_step("Transactions", "Filter Invalid Quantities", transactions_step1, transactions_step2)
+log_step("Transactions", "Remove Invalid Negatives (non-cancellation)", transactions_step1, transactions_step2)
+
+# Report cancellations retained
+cancellation_rows <- transactions_step2 %>% filter(grepl("^C", InvoiceNo) & Quantity < 0)
+cat("Cancellation rows retained:", nrow(cancellation_rows), "\n")
+cat("  (Cancellation revenue will be reported after join, once UnitPrice is available.)\n")
 
 # Step 3: Handle missing CustomerID
 # Roughly 25% of CustomerIDs are missing (NA).
@@ -181,6 +188,15 @@ analysis_data <- joined_final %>%
 cat("Rows with valid Revenue for analysis:", nrow(analysis_data), "\n")
 cat("Rows dropped due to missing price/unmatched product:", nrow(joined_final) - nrow(analysis_data), "\n")
 
+# Deferred cancellation revenue report (UnitPrice now available from join)
+canc_revenue <- joined_final %>%
+  filter(grepl("^C", InvoiceNo) & Quantity < 0 & !is.na(Revenue)) %>%
+  summarise(n = n(), total_neg_revenue = sum(Revenue))
+cat("Cancellation (return) total negative revenue: $",
+    format(round(canc_revenue$total_neg_revenue, 2), big.mark = ","),
+    "across", canc_revenue$n, "rows.\n")
+cat("Total revenue above is net of these returns.\n")
+
 # 4. TASK 3: SALES AND CUSTOMER ANALYSIS
 cat("\n=== TASK 3: SALES AND CUSTOMER ANALYSIS ===\n")
 
@@ -199,13 +215,23 @@ cat("\n2. Top 5 Products by Revenue:\n")
 print(top_products)
 
 # 3. Top 5 countries by revenue
-top_countries <- analysis_data %>%
+# Transactions with no CustomerID carry Country = NA after the left join.
+# This NA group is not a real geography; it represents 133,595 guest transactions.
+# We exclude NA Country from all country-level analysis.
+na_country_revenue <- sum(analysis_data$Revenue[is.na(analysis_data$Country)])
+na_country_rows    <- sum(is.na(analysis_data$Country))
+cat("Revenue set aside from NA-Country rows: $", format(round(na_country_revenue, 2), big.mark = ","),
+    "across", na_country_rows, "transactions (these are guest transactions with no CustomerID).\n")
+
+country_data <- analysis_data %>% filter(!is.na(Country))
+
+top_countries <- country_data %>%
   group_by(Country) %>%
   summarise(Revenue = sum(Revenue), .groups = "drop") %>%
   arrange(desc(Revenue)) %>%
   slice(1:5)
 
-cat("\n3. Top 5 Countries by Revenue:\n")
+cat("\n3. Top 5 Countries by Revenue (excluding NA-Country guest transactions):\n")
 print(top_countries)
 
 # 4. Top 5 customers by total purchase value (exclude NA CustomerID)
@@ -260,8 +286,9 @@ cat("\nCustomer Segments Count and Summary:\n")
 print(segment_summary)
 
 # Market Analysis: UK vs Others
+# NA Country rows are excluded here too, for the same reason stated above.
 cat("\nMarket Analysis (UK vs Others):\n")
-country_metrics <- analysis_data %>%
+country_metrics <- country_data %>%
   group_by(Country) %>%
   summarise(
     TotalRevenue = sum(Revenue),
@@ -276,16 +303,18 @@ country_metrics <- analysis_data %>%
 cat("\nDetailed Country Metrics (Top 10):\n")
 print(head(country_metrics, 10))
 
-# Note explicitly: United Kingdom dominates by volume.
-# Let's justify one high-performing and one underperforming market based on efficiency metrics.
-# High-performing market: Netherlands (high total revenue and extremely high revenue per customer/transaction).
-# Underperforming market: e.g., USA or Saudi Arabia (low total revenue and low revenue per transaction).
+# United Kingdom dominates by raw volume. A fair comparison needs per-customer efficiency.
+# High-performing market: EIRE (revenue per customer $92,083 from only 3 customers, indicating
+# highly concentrated bulk purchasing). Netherlands also strong at $36,788 per customer.
+# Underperforming market: Saudi Arabia ($134 total, $134 per customer, 2 transactions).
 netherlands_stats <- country_metrics %>% filter(Country == "Netherlands")
-saudi_stats <- country_metrics %>% filter(Country == "Saudi Arabia")
-usa_stats <- country_metrics %>% filter(Country == "USA")
+eire_stats        <- country_metrics %>% filter(Country == "EIRE")
+saudi_stats       <- country_metrics %>% filter(Country == "Saudi Arabia")
 
 cat("\nSelected Market Comparisons:\n")
-cat("- Netherlands (High-performing):\n")
+cat("- EIRE (High-performing per customer):\n")
+print(eire_stats)
+cat("- Netherlands (High-performing per customer):\n")
 print(netherlands_stats)
 cat("- Saudi Arabia (Underperforming):\n")
 print(saudi_stats)
@@ -358,55 +387,58 @@ if (file.exists(db_path)) {
 
 con <- dbConnect(SQLite(), db_path)
 
-# Write the integrated dataset
-cat("Writing retail_sales table to SQLite...\n")
-# RSQLite doesn't natively handle POSIXct well sometimes, let's write dates as text
+# Write a slimmed dataset: only the columns needed by the two SQL queries plus
+# those useful for future analysis (StockCode, Description, Country, Revenue).
+# Omitting InvoiceDate (stored as long string) and raw text fields cuts file size significantly.
+cat("Writing retail_sales table to SQLite (slimmed columns)...\n")
 sqlite_data <- joined_final %>%
-  mutate(InvoiceDate = as.character(InvoiceDate))
+  select(InvoiceNo, StockCode, Description, CustomerID, Country,
+         Quantity, UnitPrice, Revenue) %>%
+  filter(!is.na(UnitPrice))   # rows with no price have no Revenue; not useful in SQL
 
 dbWriteTable(con, "retail_sales", sqlite_data, overwrite = TRUE)
 
 # Execute SQL Queries
 cat("\nExecuting SQL Query 1: Top 5 Customers by Revenue...\n")
 sql_customers <- dbGetQuery(con, "
-  SELECT CustomerID, SUM(Quantity * UnitPrice) as Revenue
+  SELECT CustomerID, SUM(Revenue) as Revenue
   FROM retail_sales
-  WHERE CustomerID IS NOT NULL AND UnitPrice IS NOT NULL AND Quantity IS NOT NULL
+  WHERE CustomerID IS NOT NULL
   GROUP BY CustomerID
   ORDER BY Revenue DESC
   LIMIT 5
 ")
 print(sql_customers)
 
-cat("\nExecuting SQL Query 2: Total Revenue by Country (Top 5)...\n")
+cat("\nExecuting SQL Query 2: Total Revenue by Country, excluding NA (Top 5)...\n")
 sql_countries <- dbGetQuery(con, "
-  SELECT Country, SUM(Quantity * UnitPrice) as Revenue
+  SELECT Country, SUM(Revenue) as Revenue
   FROM retail_sales
-  WHERE UnitPrice IS NOT NULL AND Quantity IS NOT NULL
+  WHERE Country IS NOT NULL
   GROUP BY Country
   ORDER BY Revenue DESC
   LIMIT 5
 ")
 print(sql_countries)
 
+# VACUUM to reclaim freed pages and compact the file
+dbExecute(con, "VACUUM")
 dbDisconnect(con)
 
 # Cross-check Verification
 cat("\n--- CROSS-CHECK VERIFICATION ---\n")
-# Top customers comparison
 dplyr_top_cust <- top_customers %>% mutate(CustomerID = as.numeric(CustomerID))
-sql_top_cust <- sql_customers %>% mutate(CustomerID = as.numeric(CustomerID))
-cust_match <- all.equal(dplyr_top_cust$CustomerID, sql_top_cust$CustomerID) &
-              all.equal(round(dplyr_top_cust$Revenue, 2), round(sql_top_cust$Revenue, 2))
+sql_top_cust   <- sql_customers  %>% mutate(CustomerID = as.numeric(CustomerID))
+cust_match <- isTRUE(all.equal(dplyr_top_cust$CustomerID, sql_top_cust$CustomerID)) &&
+              isTRUE(all.equal(round(dplyr_top_cust$Revenue, 2), round(sql_top_cust$Revenue, 2)))
 
-# Top countries comparison
 dplyr_top_country <- top_countries
-sql_top_country <- sql_countries
-country_match <- all.equal(dplyr_top_country$Country, sql_top_country$Country) &
-                 all.equal(round(dplyr_top_country$Revenue, 2), round(sql_top_country$Revenue, 2))
+sql_top_country   <- sql_countries
+country_match <- isTRUE(all.equal(dplyr_top_country$Country, sql_top_country$Country)) &&
+                 isTRUE(all.equal(round(dplyr_top_country$Revenue, 2), round(sql_top_country$Revenue, 2)))
 
-cat("Top 5 Customers match:", cust_match, "\n")
-cat("Top 5 Countries match:", country_match, "\n")
+cat("Top 5 Customers match dplyr:", cust_match, "\n")
+cat("Top 5 Countries match dplyr:", country_match, "\n")
 
 if (cust_match && country_match) {
   cat("Verification SUCCESS: SQLite results match dplyr results exactly!\n")
@@ -418,7 +450,7 @@ if (cust_match && country_match) {
 db_size <- file.info(db_path)$size
 cat("\nDatabase file size:", round(db_size / (1024 * 1024), 2), "MB\n")
 if (db_size > 50 * 1024 * 1024) {
-  cat("WARNING: The SQLite database exceeds 50 MB.\n")
+  cat("WARNING: The SQLite database exceeds 50 MB. Consider excluding it from git.\n")
 } else {
   cat("Database file size is under 50 MB. Safe for commit.\n")
 }
