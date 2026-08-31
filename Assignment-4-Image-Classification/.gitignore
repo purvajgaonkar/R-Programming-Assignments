@@ -1,0 +1,23 @@
+# R session files
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+*.Rproj
+
+# Python / TensorFlow environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Colab scratch
+sample_data/
+assignment4_output.zip
+
+# NOTE: data/images and output/ are intentionally NOT ignored.
+# The 12 source images are tiny and the generated results are graded deliverables.
